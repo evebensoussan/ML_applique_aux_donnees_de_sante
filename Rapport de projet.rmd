@@ -1,0 +1,883 @@
+<body style="background-color: #FBD5EF;">
+<FONT color='#D3177E'><FONT size=6>
+
+::: {align="center"}
+# Projet d’étude du jeu de données FAT
+:::
+<hr style="border: 1px solid #D3177E;">
+</FONT></FONT>
+
+<FONT color='#D3177E'><FONT size=4>
+
+::: {align="center"}
+**Eve BENSOUSSAN et Léhna BOUCHAMA**  
+**E4 Filière e-Santé ESIEE Paris**
+
+
+*Année 2024 - 2025*
+:::
+
+</FONT></FONT>
+
+
+
+<hr style="border: 1px solid #D3177E;">
+
+#### <FONT color='#EE50A3'> I. Introduction  </FONT>
+  
+Dans ce projet, on analyse le jeu de données **FAT** extrait du fichier **FAT.xlsx** en utilisant des techniques de régression linéaire, mais aussi des modèles pénalisés comme Ridge et Lasso. Le but est de comprendre les relations entre les variables et de prédire le pourcentage de graisse corporelle calculé avec la méthode Brozek.
+
+Pour cela, on suit plusieurs étapes : estimer les paramètres, valider le modèle, détecter les points influents et gérer la multicolinéarité. On compare aussi nos résultats avec ceux des fonctions intégrées de R, en s'appuyant sur des outils graphiques pour mieux interpréter les données.
+
+Ce projet permet de mieux maîtriser les méthodes de modélisation et d’analyse tout en travaillant sur un vrai jeu de données.
+
+Dans un premier temps, nous allons tester un script permettant de programmer une régression linéaire multiple et nous comparerons les résultats obtenus avec ceux fournis pas les fonctions standards de R. Dans un second temps, si la régression linéaire ne convient pas nous réaliserons une régression pénalisée.
+
+Nous utilisons les bibliothèques R suivantes :
+
+- **here** : pour gérer les répertoires de manière flexible,
+- **ggplot2** : pour visualiser les résultats,
+- **kableExtra** : pour mettre en forme les tableaux,
+- **lmtest** : pour réaliser le test de Durbin-Watson,
+- **GGally** : pour créer des graphiques pairés,
+- **corrplot** : pour visualiser les matrices de corrélation,
+- **car** : pour calculer le facteur d'inflation de la variance,
+- **readxl** : pour importer des fichiers Excel, comme `FAT.xlsx`,
+- **glmnet** : pour implémenter des modèles de régression pénalisée (Ridge et Lasso),
+- **dplyr** : pour manipuler et transformer les données (filtrage, regroupement, etc.),
+- **reshape2** : pour restructurer les données entre les formats large et long,
+- **performance** : pour évaluer la performance et la qualité des modèles statistiques,
+- **see** : pour visualiser les graphiques qui vont avec les commandes de performance.
+
+Le jeu de données analysé, extrait du fichier **FAT.xlsx**, contient 252 observations réparties sur 18 variables.
+
+Les variables sont les suivantes :
+
+
+- `brozek` : Pourcentage de graisse corporelle estimé selon l'équation de Brozek (457 / densité - 414,2)
+- `siri` : Pourcentage de graisse corporelle en utilisant l'équation de Siri (495 / densité - 450)
+- `densité` : Densité en (gm/cm^2)
+- `âge` : Âge en années
+- `poids` : Poids en livres (lbs)
+- `hauteur` : Hauteur en pouces
+- `adipos` : Indice de masse corporelle (IMC) ou indice d'adiposité (kg/m²)
+- `libre` : Poids sans graisse (lbs), calculé comme (1 - fraction de graisse corporelle) * poids, en utilisant la formule de Brozek
+- `cou` : Circonférence du cou en cm
+- `poitrine` : Tour de poitrine en cm
+- `abdomen` : Circonférence abdominale en cm (mesurée au niveau du nombril et de la crête iliaque)
+- `hanche` : Tour de hanche en cm
+- `dthigh` : Tour de cuisse en cm
+- `genou` : Circonférence du genou en cm
+- `cheville` : Tour de cheville en cm
+- `biceps` : Circonférence étendue du biceps en cm
+- `avant-bras` : Circonférence de l'avant-bras en cm
+- `poignet` : Circonférence du poignet en cm (mesurée distale aux apophyses styloïdes)
+
+
+<hr style="border: 1px solid #EE50A3;">
+
+#### <FONT color='#EE50A3'>II. Analyse des données et régression linéaire multiple</FONT>
+
+##### <u><FONT color='#8A226'>1. Modèle de régression linéaire multiple</FONT></u>
+
+
+
+On représente les données et le modèle de régression multiple en utilisant bien les écritures matricielles. Pour rappel :
+
+- \( X \) est une matrice de taille \( (n, p) \) où la première colonne est constituée de 1 pour représenter l'ordonnée à l'origine.
+- \( Y \) est un vecteur colonne de taille \( (n, 1) \) représentant les valeurs observées de la variable dépendante.
+
+Les formules ci-dessous utilisent ces notations :
+
+1. **Estimation des paramètres**  
+   Les paramètres du modèle sont estimés avec :
+   \[
+   \hat{\Theta} = (X^T X)^{-1} X^T Y
+   \]
+   où \( \hat{\Theta} \) est le vecteur des coefficients estimés, incluant l'ordonnée à l'origine.
+
+2. **Valeurs estimées**  
+   Les valeurs prédites (ou ajustées) sont données par :
+   \[
+   \hat{Y} = X \hat{\Theta}
+   \]
+
+3. **Résidus**  
+   La différence entre les valeurs observées \( Y \) et les valeurs prédites \( \hat{Y} \) représente les résidus :
+   \[
+   \text{Résidus} = Y - \hat{Y} = Y - X \hat{\Theta}
+   \]
+
+4. **Somme des carrés des résidus (SCR)**  
+   La somme des carrés des résidus est calculée par :
+   \[
+   SCR = (Y - X \hat{\Theta})^T (Y - X \hat{\Theta})
+   \]
+
+5. **Variance résiduelle**  
+   La variance résiduelle est donnée par :
+   \[
+   \hat{\sigma}^2 = \frac{SCR}{n - p}
+   \]
+
+6. **Variance des paramètres**  
+   La variance des coefficients estimés se calcule avec :
+   \[
+   V(\hat{\Theta}) = \hat{\sigma}^2 (X^T X)^{-1}
+   \]
+
+7. **Test de significativité des paramètres**  
+   Le test de significativité des coefficients utilise la statistique t :
+   \[
+   T_{obs} = \frac{\hat{\theta}_j}{\sqrt{\hat{\sigma}^2 (X^T X)^{-1}_{jj}}}
+   \]
+   où \( T_{obs} \) suit une loi de Student avec \( n - p \) degrés de liberté.
+
+8. **Matrice Chapeau (Hat Matrix)**  
+   La matrice chapeau \( H \) est donnée par :
+   \[
+   H = X (X^T X)^{-1} X^T
+   \]
+
+##### <u><FONT color='#8A226'>2. Visualisation et diagnostics</FONT></u>
+
+
+Nous observons les données suivantes:
+```{r, echo = T, message=F, warning=F}
+rm( list =ls())
+
+#chargement des libraries
+library(here)
+
+library(kableExtra)
+library(lmtest)
+library(GGally)
+library (corrplot)
+library(readxl)
+library(car)
+library(glmnet)
+library(dplyr)
+library(reshape2)
+library(performance)
+library(see)
+
+#chargement du jeu de donnée (ChatGPT: "comment charger un jeu de données excel dans un dataframe sur R")
+df<-fat <- read_excel(here('FAT.xlsx')) 
+
+#afficher le jeu de données
+df %>% kbl(digits=3) %>%  kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped')  %>% 
+                    scroll_box( height = "250px")  %>%  
+                    footnote(general = 'jeu de données de validation',  footnote_as_chunk = T, title_format = c("italic", "underline"))
+```
+
+<br> <hr>
+
+<u>Paramètres du modèle</u>
+
+Tout d'abord nous cherchons à créer un modèle, soit une équation pour quantifier la relation entre la variable que nous cherchons à prédire et les variables explicatives. 
+
+Pour cela nous avons commencé par calculer les valeurs estimées à partir de la matrice chapeau. Puis nous avons calculé les résidus qui représentent les erreurs. Nous avons ensuite calculé la variabilité résiduelle SCR, mesuré la variance résiduelle soit la variabilité des erreurs. Nous avons ensuite calculé la matrice des variances/ covariances des paramètres. Enfin nous avons appliqué des inférences statistiques afin de calculer le tableau ANOVA et de réaliser le test de Fisher. (Tout ceci est disponible dans le fichier Markdown.rmd)
+
+Nous créons notre premier modèle sans `Siri` et sans `densité` car, il est indiqué dans le Excel de présentation des données que, tout comme `Brozek` ils mesurent la masse corporelle et sont donc trop corrélés. 
+```{r, echo = F}
+# Paramètres du modèle
+X <- as.matrix(cbind(1, df[, c("age","weight","height","adipos","free","neck","chest","abdom","hip","thigh","knee","ankle","biceps","forearm","wrist")]))  
+# on retire siri et densité car ils mesurent aussi l'indice de masse corpo
+# (chatgpt: "comment mettre seulement quelques variables dans un paramètre X dans la regression linéaire multiple sur R") 
+
+# Paramètres du modèle suite
+Y <- as.matrix(df$brozek) #y = la variable qu'on cherche
+n <- nrow(X) # n = colonnes
+p <- ncol(X) # p = lignes
+
+# Calcul de Theta (paramètres de la régression)
+Theta_hat <- solve(t(X) %*% X) %*% t(X) %*% Y
+rownames(Theta_hat) <- c("Intercept", "age","weight","height","adipos","free","neck","chest","abdom","hip","thigh","knee","ankle","biceps","forearm","wrist")
+#Theta_hat (chatgpt: comment calculer theta chapeau sur R en regression linéaire multiple)
+```
+```{r, echo = F}
+#Nous commençons par calculer les valeurs estimées, à partir de la matrice chapeau.
+#-> valeurs estimées
+
+Y_hat <- X %*% Theta_hat
+#data.frame(Y_hat) %>% head() %>% kbl(digits=3) %>% kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped') 
+```
+```{r, echo = F}
+#Nous calculons ensuite les résidus
+#-> résiduelle
+eps <- Y - Y_hat
+
+#data.frame(eps) %>% head() %>% kbl(digits=3) %>%  kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped') %>% scroll_box( height = "250px")  
+```
+```{r, echo = F}
+#Puis nous calculons la variabilité résiduelle : SCR.
+SCR <- t(eps) %*% eps
+#SCR
+```
+```{r, echo = F}
+#Nous mesurons ensuite la variance résiduelle, soit la variabilité des erreurs.
+sigma2_hat <- SCR / (n - p)
+#sigma2_hat
+```
+```{r, echo = F}
+#On calcule ensuite la matrice des variances covariances des paramètres.
+sig_param <- as.numeric(sigma2_hat) * solve(t(X) %*% X)
+#data.frame(sig_param) %>% head() %>% kbl(digits=3) %>%  kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped')
+```
+```{r, echo = F}
+#Nous pouvons ensuite calculer les inférences statistiques sur les paramètres.
+#-> Inférence statistique sur les paramètres
+T_obs <- Theta_hat / sqrt(diag(sig_param))
+p_values <- 2 * (1 - pt(abs(T_obs), df = n - p))
+stat_param <- data.frame(Theta_hat, T_obs, p_values)
+colnames(stat_param) <- c("Estimate", "t-value", "p-value")
+#stat_param %>% head() %>% kbl(digits=3) %>% kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped')
+#data.frame(stat_param) %>% kbl(digits=3) %>%  kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped')
+```
+```{r, echo = F}
+#Nous appliquons ces inférences statistiques sur le modèle de régression pour obtenir le tableau d'ANOVA.
+H <- X %*% solve(t(X) %*% X) %*% t(X)
+#-> SCReg
+SCReg <- t(Y_hat - mean(Y)) %*% (Y_hat - mean(Y))
+#-> SCT
+SCT <- t(Y - mean(Y)) %*% (Y - mean(Y))
+
+#-> Tableau d'ANOVA
+
+Tab_Reg <- data.frame(
+  Source = c("Régression", "Résiduelle"),
+  SC = c(SCReg, SCR),
+  ddl = c(p - 1, n - p),
+  CM = c(SCReg / (p - 1), SCR / (n - p))
+)
+Tab_Reg$F_value <- c(Tab_Reg$CM[1] / Tab_Reg$CM[2], NA)
+
+#Tab_Reg %>% head() %>% kbl(digits=3) %>% kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped')
+```
+```{r, echo = F}
+#Enfin nous utilisons les inférences statistiques sur le modèle de régression pour obtenir le test de Fisher.
+#-> test de fisher
+Fc <- Tab_Reg$F_value[1]
+Prob <- 1 - pf(Fc, p - 1, n - p)
+#cat('F_obs = ', Fc, '  Proba = ', Prob)
+#data.frame(Tab_Reg) %>% kbl(digits=3) %>%  kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped')
+```
+
+
+On crée notre modèle à partir des différentes variables, puis on regarde le résumé.
+Pour créer notre modèle nous utilisons la fonction `lm()`, qui permet de calculer les paramètres et les inférences associées à nos variables. 
+```{r}
+
+myf <- 'brozek ~ age + weight + height + adipos + free + neck + chest + abdom + hip + thigh + knee + ankle + biceps + forearm + wrist'
+modele <- lm(myf, data = df)
+summary(modele)
+```
+Nous pouvons observer le résumé du modèle cherchant à expliquer la variable `brozek` en fonction des différentes variables, soit `age`, `weight`, `height`, `adipos`, `free`, `neck`, `chest`, `abdom`, `hip`, `thigh`, `knee`, `ankle`, `biceps`, `forearm` et `wrist`. 
+
+Les p-values sont des valeurs permettant de rejeter l'hypothèse nulle. Celle-ci correspond à l'absence de significativité des variables dans le modèle, autrement dit que leur coefficient soit nul. Nous observons que les variables avec des étoiles ou des points sont les seules avec des p-values<0,1 permettant de rejeter l'hypothèse nulle et donc d'être statistiquement significatives.  Nous ne gardons donc que ces variables, et supprimons celles avec une p-value au dessus du seuil que nous avons choisi:
+
+```{r}
+modele <- lm(brozek ~  weight + adipos + free + chest + abdom + thigh + ankle + biceps + forearm , data = df)
+summary(modele)
+```
+Ici nous observons donc le modèle cherchant à expliquer la variable `brozek`, à l'aide de `weight`, `adipos`, `free`, `chest`, `abdom`, `thigh`, `ankle`, `biceps` et `forearm.`
+Nous voyons dans l'analyse des résidus qu'il y a des valeurs extrêmes car les résidus maximaux et minimaux sont assez éloignés de 0.
+Dans la partie coefficient nous pouvons voir une ligne `intercept`, qui nous indique la valeur moyenne de `brozek` quand les variables sont nulles. (source ChatGPT: "explique intercept dans un summary R regression multiple")
+Puis nous vérifions que toutes les variables ont des étoiles, elles contribuent donc toute au modèle car elles ont une p-value<0,5. Les plus significatives sont `weight`, `free` avec une p-value inférieure à 2e-16. 
+Nous voyons dans notre `summary` que R² est égal a 0,96 nous avons donc 96% de variance expliquée.
+
+
+Nous avons également mesuré les intervalles de confiances associés aux paramètres.
+```{r}
+prédiction <-predict(modele, interval = 'confidence') 
+prédiction %>% head()%>% kbl(digits=3) %>% kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped')
+```
+
+Nous voyons 3 colonnes : 
+
+
+ - `fit` : la valeur prédite
+ - `lwr` : le seuil planché de l'intervalle de confiance autour de la prédiction
+ - `upr` : le seuil plafond de ce même intervalle de confiance.
+ 
+On voit que les intervalles de précisions sont très faibles, donc les valeurs prédites sont assez précises. 
+
+<br><hr>
+
+
+Nous construisons le graphique des résidus standardisés.
+```{r}
+rcn <-  (eps - mean(eps) )/  sqrt(as.numeric(sigma2_hat))
+gr <- ggplot() + 
+       geom_point( aes(x = modele$fitted.values, y = as.numeric(rcn)), colour = 'steelblue', size = 3) +
+       geom_hline( yintercept = c(-1.96, 0 , +1.96), color = '#990000', linetype = 2 )                 +
+       xlab('résidus standardisés')
+gr
+```
+
+On observe que les résidus se présentent sous la forme d'une arche. On voit que certains résidus sortent de la plage acceptable et dépassent les lignes seuils, ce qui montre qu'il y a quelques points aberrants. 
+
+Nous pouvons désormais utiliser des outils exploratoires pour analyser notre modèle de données. 
+
+Nous utilisons la fonction `ggpairs` du paquet `GGaly` afin de visualiser les nuages de points et les corrélations : 
+
+```{r}
+ggpairs(modele)
+```
+
+Nous pouvons voir dans la diagonale que nos données sont distribués sous la forme d'une courbe sinusoidale ce qui est normal. 
+
+
+Puis nous utilisons la fonction `corrplot` du paquet du même nom pour visualiser les corrélations :
+```{r}
+corrplot(cor(df))
+```
+
+Lorsque deux variables sont corrélées elles varient ensemble. Si nous observons une corrélation positive, ceci signifie que les variables augmentent ensemble. Si la corrélation est négative, les variables seront donc inversement proportionnelles.
+
+On peut voir que `siri` et `densité` sont très fortement corrélés avec notre variable d'intérêt `brozek`. Ces corrélations entraînent une multicolinéarité qui déstabilise le modèle. Nous avons donc bien fait de ne pas les inclure. 
+
+Nous pouvons aussi voir d'autres corrélations entre d'autres variables:
+
+- la variable `weight` est positivement corrélée avec `adipos`, `free`, `chest`, `abdom`, `thigh`, `biceps`
+- la variable `adipos` est positivement corrélée avec `brozek`, `chest`, `abdom`, `thigh`, `biceps`
+- la variable `chest` est positivement corrélée avec `brozek`, `neck`, `abdom`, `biceps`
+- la variable `abdom` est positivement corrélée avec `brozek`
+- la variable `thigh` est positivement corrélée avec `biceps`
+- les variables `ankle` et `forearm` ne sont pas très corrélées avec d'autres variables
+
+Les corrélations avec notre variable d'intérêt `brozek` (`adipos`, `chest`, `abdom`) sont légèrement moins fortes que celles avec `siri` et `densité`, nous choisissons de les garder dans notre modèle, et de décider plus tard avec d'autres tests si elles s'avèrent problématiques. 
+
+
+<br> <hr>
+Nous cherchons désormais à valider notre modèle.
+
+Nous testons dans un premier temps l’indépendance des résidus à l’aide du test de **Durbin Watson**. Nous pourrons ainsi repérer les autocorrélations positives entre les résidus.
+```{r}
+dwtest(modele)
+```
+
+On peut voir que la p-value est inférieure à 0,05. Il y a donc une autocorrélation de nos résidus. L'analyse par régression multiple est donc instable. 
+
+Puis nous voulons analyser les résidus studentisés afin de détecter les valeurs aberrantes.
+
+Tout d'abord les résidus internes:
+```{r}
+rstud<-rstudent(modele); indx  <-seq(1,length(rstud),1)
+plot(rstud~indx,cex.lab =0.8,xlab='index',ylab='résidus studentisés (standards)')
+abline(h = c(-2,0,2),col ='red',lty=c(2,1,2))
+abline(h = c(-2.8,2.8),col ='blue',lty=c(3,3))
+```
+
+On peut voir qu'on obtient des valeurs aberrantes très loin du seuil.
+Nous cherchons à les supprimer:
+
+```{r}
+aberrants <- abs(rstud) > 1.9
+points_aberrants <- which(aberrants)
+df_sans_aberrants <- df[-points_aberrants, ]
+modele <- lm(brozek ~ weight + adipos + free + chest + abdom + thigh + ankle + biceps + forearm, data = df_sans_aberrants)
+
+rstud<-rstudent(modele); indx  <-seq(1,length(rstud),1)
+plot(rstud~indx,cex.lab =0.8,xlab='index',ylab='résidus studentisés (standards)')
+abline(h = c(-2,0,2),col ='red',lty=c(2,1,2))
+abline(h = c(-2.8,2.8),col ='blue',lty=c(3,3))
+```
+
+Nous observons que nous avons beaucoup moins de valeurs aberrantes. 
+
+Nous cherchons maintenant à étudier les résidus studentisés externes. Pour cela nous utilisons la fonction `hat` qui calcule la matrice chapeau et la fonction `model.matrix` qui transforme le dataframe en matrice.
+```{r}
+diag_hat <- hat(model.matrix(modele))
+n<-length(diag_hat)                   
+p<- length(modele[[1]])           
+rstud_ext<-rstud*sqrt((n-p-1)/(n-p-rstud*rstud)) ;
+indx  <-seq(1,length(rstud_ext),1)
+plot(rstud_ext~indx,cex.lab =0.8,xlab='index',ylab='résidus studentisés externes')
+abline(h = c(-2,0,2),col ='red',lty=c(2,1,2))
+abline(h = c(-2.8,2.8),col ='blue',lty=c(3,3))
+
+```
+
+Nous pouvons voir que même si la majorité des valeurs se trouvent entre les lignes seuils, quelques valeurs dépassent cet intervalle. Pour vérifier que les données sont malgré tout analysable, et qu'il s'agit de valeurs influentes et non pas aberrantes, nous utilisons la fonction `check_outliers`: 
+
+```{r}
+check_outliers(modele)
+```
+
+Nous voyons qu'il n'y a pas de valeurs aberrantes détectées, donc nous pouvons confirmer notre hypothèse qu'il s'agissait de valeurs influentes.
+
+
+Nous faisons ensuite les tests de **DFFITS** et **Cook**, qui permettent de détecter les valeurs influentes sur l'estimation des valeurs prédites.
+
+Tout d'abord DFFITS est une technique utilisant la fonction `dffits.`
+```{r}
+# calcul des DFFITS
+DFFITS<-dffits(modele) ; DFFITS <-abs(DFFITS)
+# index des observations ayant une influence sur les valeurs pr?dites 
+id_DFFITS<-which(abs(dffits(modele)) > 2*sqrt((p+1)/n))
+#graphiques des DFFITS
+plot(DFFITS,type ='h', ylab = 'abs(DFFITS)')
+abline(h = 2*sqrt((p+1)/n),col ='red',lty=2)
+```
+
+Nous voyons qu'il y a 3 valeurs très influentes car elles sont bien au dessus du seuil. Elles se situent aux index de 49, 150 et 200.
+
+Nous calculons ensuite la distance de **Cook** à l'aide de la fonction `cooks.distance`.
+```{r}
+# Calcule de la distance de Cook
+COOKS<-cooks.distance(modele)
+plot(COOKS,type ='h', ylab = 'Distance de Cooks')
+abline(h =  qf(0.05,n,n-p),col ='red',lty=2)
+```
+
+Nous pouvons revoir les valeurs que nous avions remarqué avec le **DFFITS**. 
+
+
+Nous analysons ensuite les points leviers et dfbetas qui permettent de détecter les valeurs influentes sur l'estimation des paramètres. 
+Tout d'abord les points leviers, sont des observations qui influencent l'estimation des paramètres, on les obtient grâce à :
+```{r}
+# points leviers
+plot(diag_hat,type = 'h', ylab='points leviers',ylim=c(0,2*p/n+0.5))
+abline(h = 2*p/n,col ='red',lty=2)
+```
+
+Nous pouvons observer 5 points leviers.
+
+Les **DFBETAS** permettent de détecter l'influence de la i ème valeur sur le j ème paramètre. Nous les observons tel que : 
+```{r}
+# DFBETAS
+par(mfcol = c(5, 2), mar = c(2, 2, 2, 2)) 
+DFBETAS <- dfbetas(modele)
+for(i in 1 : dim(DFBETAS)[2]) { plot(abs(DFBETAS[,i]), type = 'h', 
+                                     ylab = paste('DFBETAS -> Variable : ', colnames(DFBETAS)[i]), cex.lab = 0.8)
+                                abline(h = 2/sqrt(n), col = 'red', lty = 2)}
+```
+
+Nous observons 10 graphiques, dans chacun on voit certaines valeurs au dessus de la ligne seuil, qui sont donc influentes. On retrouve notamment nos 5 points leviers.
+
+Nous utilisons le `covratio`, afin de détecter les valeurs influentes sur la variance des paramètres. 
+```{r}
+COVRATIO<-covratio(modele)
+par(mfcol=c(1,1)) ; plot(abs(COVRATIO-1),type ='h', ylab = 'COVRATIO')
+abline(h = 3*p/n,col ='red',lty=2)
+```
+
+On peut voir 6 valeurs qui sont bien au dessus du seuil et qui influencent donc la variance sur les paramètres. Ces points affectent donc l'estimation de nos paramètres de manière significative. 
+
+
+Enfin nous étudions la multicolinéarité grâce au test du **VIF**.
+```{r}
+v<-vif(modele)
+barplot(v,type ='h',cex.lab = 0.9, ylab = 'VIF')
+abline(h = 5,col ='red',lty=2)
+```
+
+On peut voir que les variables sont presque toutes au dessus du seuil de VIF, il y a donc de nombreuses multicolinéarités rendant notre modèle instable et donc non analysable. 
+
+Nous finissons par confirmer que nous ne pouvons pas analyser notre modèle avec la commande `check_model` qui est un résumé de tests sur le modèle:
+```{r}
+check_model(modele)
+```
+
+Sur ce graphique nous voyons en condensé les caractéristiques de notre modèle. En haut à gauche nous voyons la vérification prédictive postérieure qui vérifie si le modèle est efficace dans la prédiction des variables y observées. Nous voyons que la courbe obtenue(bleu) suit la courbe prédite (verte), le modèle est donc bien capable de reproduire les caractéristiques observées dans les données réelles.
+
+En haut à droite nous retrouvons la linéarité, qui nous permet donc de vérifier la relation linéaire entre l'ensemble des variables explicatives et la variable expliquée. Nous voyons que ce que nous obtenons n'est pas exactement une droite, car elle est légèrement archée Cependant, la ligne s'affiche en vert malgré tout, nous faisons donc l'hypothèse que même si elle n'est pas parfaite, la linéarité du jeu de donnée est acceptable.
+
+Nous retrouvons dans la ligne suivante l'homogénéité de la variance, qui nous permet de vérifier la condition d'homoscédasticité du jeu de données. Nous voyons que la ligne obtenue devrait être plate et horizontale, et correspond (encore une fois à peu près) à l'allure de la courbe que nous obtenons. Nous n'avons donc pas de problème d'hétéroscédasticité.
+
+À côté nous voyons les points influents du modèle, qui sont bien contenu entre les lignes seuils, nous n'avons donc plus de valeurs aberrantes, seulement des valeurs influentes.
+
+Juste en dessous, on retrouve le graphique de la normalité des résidus, soit la vérification de la distribution normale des résidus (qui fonctionne donc comme un QQ plot). Les points sont répartis sur une ligne horizontale, sauf aux extrémités. Cependant, nous avons considéré que l'allure de la courbe était suffisante pour conclure qu'il n'y avait pas de problème de normalité.
+
+Le dernier graphique, en bas à gauche, représente la colinéarité. Il s'agit d'une autre représentation du VIF, où nous remarquons que nous avons donc bien un problème de multicolinéarité.
+
+
+Nous ne pouvons donc pas analyser nos données à partir de la régression linéaire multiple, nous allons donc essayer d'utiliser la régression pénalisée.
+
+
+
+
+
+<hr style="border: 1px solid #EE50A3;">
+
+
+#### <FONT color='#EE50A3'> III. Régression pénalisée  </FONT>
+
+
+Pour résoudre les problèmes de multicolinéarité et améliorer l'interprétation de nos modèles, nous avons recours à des modèles de régression pénalisée. Ces techniques permettent de contrôler la complexité du modèle en ajoutant une pénalité aux coefficients. Parmi les approches disponibles, nous explorons **Ridge** et **Lasso**.
+
+Nous observons nos données :
+```{r}
+y_name <- 'brozek'
+
+Y  <- fat %>% select(  all_of(y_name))
+X <- fat %>% select(-all_of(c(y_name, "siri", "density")))
+XY <- fat
+
+n_obs <- nrow(X)
+
+X_stand  <- as_tibble(scale(X))
+Y_stand  <- as_tibble(scale(Y, center = T, scale = F))
+XY_stand <- X_stand %>% bind_cols(Y_stand) 
+
+#->dans la formulation, on introduit le 0 
+#  pour signifier que l'on ne doit pas calculer l'ordonnée à l'origine !!
+formul   <- as.formula(paste0(y_name , ' ~  + 0 + ', paste0(colnames(X), collapse = ' + ')))
+```
+Nous choisissons d'exclure à nouveau `siri` et `densité` de l'étude, car ces variables sont très fortement corrélées avec la variable expliquée et risquent donc de parasiter nos résultats.
+
+```{r, echo = F}
+fat  %>% kbl(digits=3) %>%  kable_styling(bootstrap_options = "striped", full_width = F, position = "center", latex_options = 'stripped') %>% scroll_box( height = "250px")  
+#-> régression linéaire multiple
+model_simple <- lm(formula = formul, data = XY_stand)
+```
+
+##### <u><FONT color='#8A226'>**1. Régression Ridge**</FONT></u>
+
+
+   La régression Ridge \( L2 \) minimise l’expression suivante :
+   \[
+   \min_{\Theta} \left( \sum_{i=1}^{n} (y_i - X_i \Theta)^2 + \lambda \sum_{j=1}^{p} \theta_j^2 \right)
+   \]
+   où \( \lambda \) est un hyperparamètre qui contrôle l’importance de la pénalité appliquée à la norme \( L2 \) des coefficients. Cela a pour effet de réduire les valeurs des coefficients sans les annuler complètement, rendant le modèle moins sensible aux corrélations élevées entre les variables explicatives.
+
+Code explicatif pour la régression Ridge:
+
+
+On charge les données depuis un fichier Excel nommé `FAT.xlsx` situé dans le répertoire défini par la fonction **here()**. Et on définit une graine pour assurer la reproductibilité des résultats aléatoires. 
+
+On crée une matrice X contenant les prédicteurs sélectionnés. Ces variables représentent les caractéristiques liées aux individus dans l'étude (âge, poids, taille, etc.).
+On génère une variable cible y comme la somme pondérée des 15 premières colonnes de X,à laquelle est ajouté un bruit gaussien aléatoire pour simuler une réponse. 
+
+On standardise les prédicteurs (centrage à zéro et mise à l’échelle à l’écart-type unitaire) pour éviter que les variables à grande échelle n’écrasent les autres. La normalisation des données de test utilise les paramètres de centrage et d'échelle des données d'entraînement.
+
+`lambda` génère une séquence de valeurs pour régulariser le modèle et `cv.glmnet` ajuste un modèle Ridge et effectue une validation croisé pour trouver la valeur de lambda la plus optimale.
+`lambda.min` permet d'identifier la valeur de lambda qui minimise MSE et `predict` utilise le modèle ajusté pour faire des prédictions sur les données de test. 
+
+Enfin on calcule l'erreur quadratique moyenne (MSE) entre les prédictions et les valeurs observées de y.
+   
+```{r, echo = T}
+set.seed(123)
+#-> progression géométrique des valeurs possibles de lambda
+lambda   <- 10^seq(-3,5,length.out = 100)
+
+#-> regression ridge et validation croisée
+# .... la standardisation = F car les données sont déjà standardisées
+# les arguments x et y doivent être des matrices et non des data frames ni des tibbles
+ridge_cv <- cv.glmnet(x = as.matrix(X_stand), y = as.matrix(Y_stand), lambda = lambda, standardize = F, nfolds = 10, alpha = 0)
+
+#-> résultats SCE
+plot(ridge_cv)
+
+id_best_ridge  <- which.min(ridge_cv$cvm)
+lam_best_ridge <- ridge_cv$lambda[id_best_ridge]
+MSE_best_ridge <- ridge_cv$cvm[id_best_ridge]
+
+paste0(' Ridge : best_lam = ' ,lam_best_ridge, '  --- Best MSE = ', MSE_best_ridge)
+
+```
+
+On voit que le modèle commence par avoir une MSE proche de 10, puis en augmentant le lambda et donc la pénalité, la MSE diminue puis ré-augmente jusqu’à stabilisation quand la MSE est maximale.
+Nous choisissons le meilleur lambda, soit celui qui minimise l’erreur, donc situé au minimum de la courbe. Celui ci est mis en valeur entre les barres verticales, il est donc légèrement inférieur à 0.
+
+
+##### <FONT color='#CF4594'> On effectue une estimation des paramètres </FONT> 
+
+`glmnet` ajuste les coefficients Θ pour chaque valeur de λ dans l’ensemble d’entraînement.
+`param_best_ridge` calcule les coefficients spécifiques au λ optimal.
+
+On formate les coefficients des modèles Ridge en fonction des valeurs logarithmiques de λ pour permettre la visualisation graphique.
+
+On visualise les coefficients des prédicteurs en fonction de log(𝜆).
+```{r, echo = T}
+
+#--> estimation des paramètres en fonction des lambdas
+param_ridge <- glmnet(x = as.matrix(X_stand), y = as.matrix(Y_stand), lambda = lambda, standardize = F,  alpha = 0)
+
+#-> estimation des paramètres pour le lambda optimal
+param_best_ridge <- glmnet(x = as.matrix(X_stand), y = as.matrix(Y_stand), lambda = lam_best_ridge, standardize = F,  alpha = 0)
+
+#-> reformulation du graphique
+df_param <- data.frame(as.matrix(t(param_ridge$beta)), rev(log(lambda)))  ; colnames(df_param) <- c(colnames(X), 'lam')
+df_melt  <- melt(df_param, id.vars = 'lam')
+gr_ridge <- ggplot() + geom_line(data = df_melt, aes(x = lam, y = value, colour = variable), size = 0.5)  +
+                    xlab('log(lambda)') + ylab('Coefficients') +
+                    geom_vline(aes(xintercept = lam_best_ridge), colour = '#993300', size = 0.5, linetype = 1)
+gr_ridge
+
+print(param_best_ridge$beta)
+
+```
+
+On voit que les variables `weight` et `free` sont les plus influentes sur le calcul de notre lambda, car les coefficients en valeur absolue sont très élevés (=10) et donc très éloignés de 0. Une ligne verticale marque la valeur optimale de λ, où les coefficients sont les mieux équilibrés entre biais et variance. On voit à cette abscisse, que les variables ont toute un effet à peu près équilibré, la plus importante étant `free` car il s'agit de la plus éloignée de 0.
+
+
+
+##### <FONT color='#CF4594'> Comparaison regression multiple et Ridge </FONT>
+
+```{r}
+Y_est_ridge <- as.matrix(X_stand) %*% as.matrix(param_best_ridge$beta) 
+Y_est_lm    <- model_simple$fitted.values
+Y_obs       <- Y_stand
+temp        <- data.frame(Y_est_ridge,Y_est_lm) ; names(temp) <- c('ridge', 'glm')
+temp        <- melt(temp)
+df_comp     <- data.frame (temp, 'y_obs' =  rep(as.matrix(Y_obs,ncol = 1),2))
+
+gr_comp1    <- ggplot(data = df_comp, aes(x = y_obs, y = value, colour = variable)) + geom_point() + 
+               geom_smooth(method = lm, se = F, size = 0.5)
+gr_comp1
+
+```
+
+Le modèle de régression Ridge a permis de réduire l'impact de la multicolinéarité, avec des coefficients qui tendent vers zéro à mesure que λ augmente.
+
+En effet, on voit dans ce graphique l'effet de **Ridge** par rapport à la régression linéaire multiple. La droite rouge passe bien par les points rouges correspondant à la méthode de **Ridge** donc on comprend que le modèle est performant. Cependant autour de la droite bleu modélisant la régression linéaire multiple (glm) les points sont assez dispersés.
+Les points associés au modèle Ridge sont moins dispersés ou mieux alignés que ceux du **GLM**, cela montre que **Ridge** gère mieux les problèmes de multicolinéarité grâce à sa régularisation.
+
+En comparaison avec la régression linéaire classique, la régression **Ridge** a montré une plus grande robustesse face aux variables corrélées, offrant ainsi des prédictions plus fiables. Les coefficients ont été stabilisés, ce qui réduit le risque de surajustement tout en maintenant les variables les plus pertinentes.
+
+
+---
+
+##### <u><FONT color='#8A226'>**2. Régression Lasso**</FONT></u>
+
+
+   La régression Lasso ajoute une pénalité \( L1 \), minimisant ainsi :
+   \[
+   \min_{\Theta} \left( \sum_{i=1}^{n} (y_i - X_i \Theta)^2 + \lambda \sum_{j=1}^{p} |\theta_j| \right)
+   \]
+  
+  Cette méthode permet de réduire certains coefficients à zéro, ce qui simplifie le modèle et le rend plus interprétable. La régression **Lasso** est particulièrement utile lorsque l'on travaille avec un grand nombre de variables, car elle permet d'éliminer celles qui ne sont pas pertinentes tout en maintenant une bonne performance du modèle.
+  
+  Le code standardise les données avant d'appliquer la régression **Lasso** avec la fonction `cv.glmnet`. Cette fonction effectue une validation croisée pour déterminer la valeur optimale de λ. Un graphique est généré pour visualiser l'évolution de l'erreur quadratique moyenne (MSE) en fonction de λ.
+   
+```{r}
+lasso_cv <- cv.glmnet(x = as.matrix(X_stand), y = as.matrix(Y_stand), lambda = lambda, standardize = F, nfolds = 10, alpha = 1)
+plot(lasso_cv)
+
+id_best_lasso  <- which.min(lasso_cv$cvm)
+lam_best_lasso <- lasso_cv$lambda[id_best_lasso]
+MSE_best_lasso <- lasso_cv$cvm[id_best_lasso]
+
+paste0(' Lasso : best_lam = ' ,lam_best_lasso, '  --- Best MSE = ', MSE_best_lasso)
+
+```
+
+On voit que le modèle commence par avoir une MSE proche de 10, puis en augmentant le lambda et donc la pénalité, la MSE diminue puis ré-augmente jusqu’à stabilisation quand la MSE est maximale.
+Nous choisissons le meilleur lambda, soit celui qui minimise l’erreur, donc situé au minimum de la courbe. Celui ci est mis en valeur entre les barres verticales, il est donc légèrement inférieur à 0. Nous observons également que la pente est plus abrupte, donc que le coefficient directeur est plus élevé pour la méthode Lasso que pour la méthode Ridge.
+
+
+##### <FONT color='#CF4594'> Estimation des paramètres </FONT>
+
+Ensuite, on estime les paramètres pour différentes valeurs de λ et trace un graphique pour montrer comment les coefficients évoluent avec λ. On a également extrait et affiché les paramètres pour la valeur optimale de λ.
+
+```{r, echo = T}
+#--> estimation des paramètres en fonction des lambdas
+param_lasso <- glmnet(x = as.matrix(X_stand), y = as.matrix(Y_stand), lambda = lambda, standardize = F,  alpha = 1)
+
+#-> estimation des paramètres pour le lambda optimal
+param_best_lasso <- glmnet(x = as.matrix(X_stand), y = as.matrix(Y_stand), lambda = lam_best_lasso, standardize = F,  alpha = 1)
+
+#-> reformulation du graphique
+df_param_lasso <- data.frame(as.matrix(t(param_lasso$beta)), rev(log(lambda)))  ; colnames(df_param_lasso) <- c(colnames(X), 'lam')
+df_melt_lasso  <- melt(df_param_lasso, id.vars = 'lam')
+gr_ridge <- ggplot() + geom_line(data = df_melt_lasso, aes(x = lam, y = value, colour = variable), size = 0.5)  +
+                    xlab('log(lambda)') + ylab('Coefficients') +
+                    geom_vline(aes(xintercept = lam_best_lasso), colour = '#993300', size = 0.5, linetype = 1)
+gr_ridge
+print(param_best_lasso$beta)
+```
+
+Nous pouvons voir dans le tableau des meilleurs paramètres que ceux de l'`age`, `adipos`, `neck`, `hip` et `wrist` sont désormais égal à 0. Ces variables ont été considéré comme moins importantes et ont donc été simplifiées du modèle. Nous voyons graphiquement que `weight`et `free` sont toujours les variables qui ont le plus d'influence sur notre modèle, car elles ont les coefficients les plus importants.
+
+
+##### <FONT color='#CF4594'> Comparaison régression linéaire multiple, Ridge et Lasso </FONT>
+
+Enfin, on compare les résultats obtenus avec la régression **Lasso**, la régression **Ridge**, et la régression linéaire classique. Cela nous permet de voir que le modèle **Lasso**, en réduisant certains coefficients à zéro, aboutit à un modèle plus simple, tout en conservant une bonne capacité prédictive.
+
+```{r}
+Y_est_lasso <- as.matrix(X_stand) %*% as.matrix(param_best_lasso$beta) 
+Y_est_ridge <- as.matrix(X_stand) %*% as.matrix(param_best_ridge$beta) 
+Y_est_lm    <- model_simple$fitted.values
+Y_obs       <- Y_stand
+temp        <- data.frame(Y_est_lasso, Y_est_ridge, Y_est_lm) ; names(temp) <- c('lasso', 'ridge', 'glm')
+temp        <- melt(temp)
+df_comp     <- data.frame (temp, 'y_obs' =  rep(as.matrix(Y_obs,ncol = 1),3))
+
+gr_comp2    <- ggplot(data = df_comp, aes(x = y_obs, y = value, colour = variable)) + geom_point() + 
+               geom_smooth(method = lm, se = F, size = 0.5)
+gr_comp2
+```
+
+
+Le modèle de régression **Lasso** a permis de sélectionner les variables les plus pertinentes en réduisant certains coefficients à zéro grâce à la pénalisation \( L1 \).
+
+En effet, on voit dans ce graphique l'effet de **Lasso** par rapport à la régression linéaire multiple et à **Ridge**. La droite correspondant à Lasso est bien alignée avec les points associés à cette méthode, montrant une bonne capacité prédictive. Comparativement, les points de la régression linéaire multiple (**GLM**) sont davantage dispersés autour de leur droite de tendance, ce qui indique un risque plus élevé de surajustement. 
+
+Les points liés à **Lasso** sont également moins dispersés que ceux de **GLM** et, dans certains cas, plus alignés que ceux de **Ridge**. Cela reflète l'avantage de **Lasso** en termes de simplification du modèle, en éliminant les variables inutiles tout en conservant une performance prédictive élevée.
+
+ En comparaison, **Lasso** offre un modèle plus interprétable que **Ridge** grâce à la suppression des coefficients non significatifs, tout en conservant une robustesse face à des données complexes ou bruitées.
+
+
+---
+   
+##### <u><FONT color='#8A226'>**3. ElasticNet**</FONT></u>
+
+
+La méthode **ElasticNet** combine les avantages des régressions **Ridge** et **Lasso**. Elle permet de sélectionner les variables non pertinentes tout en offrant une solution robuste en cas de multicolinéarité élevée entre les variables explicatives. Contrairement à **Lasso** qui peut éliminer certaines variables de manière trop stricte, **ElasticNet** permet de partager les poids entre les variables fortement corrélées, ce qui en fait une méthode plus flexible et adaptée pour des modèles avec des interactions complexes entre les variables.
+
+
+  Le critère à minimiser pour l’estimation des paramètres est le suivant :  
+\[
+J(\hat{\Theta}_{enet}) = \left[ \frac{1}{n} \sum_{i=1}^{n} \left( y_i - \sum_{j=1}^{p} \hat{\theta}_j x_{i,j} \right)^2 \right] + \lambda \left[ \alpha \sum_{j=1}^{p} |\hat{\theta}_j| + (1-\alpha) \sum_{j=1}^{p} \hat{\theta}_j^2 \right]
+\]
+
+  où :  
+- \( \lambda \) est le facteur de pénalisation,  
+- \( \alpha \) est le facteur de mélange entre Lasso (\( L1 \)) et Ridge (\( L2 \)).
+
+  Les paramètres \( \lambda \) et \( \alpha \) sont estimés via **validation croisée**.
+
+  La condition optimale pour \( \hat{\Theta}_{enet} \) est obtenue en annulant le gradient :  
+\[
+\frac{\partial J(\hat{\Theta}_{enet})}{\partial \hat{\Theta}_{enet}} = 0
+\]
+
+  **ElasticNet** est particulièrement utile pour :  
+    - Réduire la complexité des modèles tout en évitant la        sélection arbitraire,  
+    - Maintenir la robustesse en cas de multicolinéarité          élevée entre les variables explicatives.  
+    
+
+Les données sont d'abord standardisés pour garantir que chaque variable soit à la même échelle. Ensuite, un ensemble de valeurs pour λ et α est défini. 
+λ contrôle la pénalité de régularisation, tandis que α ajuste le compromis entre la régularisation de type **Lasso** (L1) et **Ridge** (L2). 
+
+La fonction `cv.glmnet` est utilisée pour effectuer une validation croisée et déterminer les meilleurs paramètres λ et α en minimisant l'erreur quadratique moyenne (MSE). 
+
+Une fois les meilleurs paramètres trouvés, le modèle **ElasticNet** est ajusté avec ces valeurs optimales.
+
+
+```{r}
+lambda  <- 10^seq(-3,5,length.out = 100)
+alpha   <- seq(0,1,length.out = 100)  
+
+n_tune  <- length(alpha)
+tune    <- data.frame(mse = rep(0,n_tune), lambda = rep(0,n_tune), alpha = rep(0,n_tune))
+
+for (i in 1:n_tune)
+      {
+        elastic_cv       <- cv.glmnet(x = as.matrix(X_stand), y = as.matrix(Y_stand), lambda = lambda, standardize = F, nfolds = 10, alpha = alpha[i])
+        id_best_elastic  <- which.min(elastic_cv$cvm)
+        tune[i,1]        <- elastic_cv$cvm[id_best_elastic]
+        tune[i,2]        <- elastic_cv$lambda[id_best_elastic]
+        tune[i,3]        <- alpha[i]
+
+      }
+
+    
+    id <- which.min(tune[,1])              
+    alpha_best       <- tune[id,3]
+    lam_best_elastic <- tune[id,2]
+    MSE_best_elactic <- tune[id,1]
+    param_elastic    <- glmnet(x = as.matrix(X_stand), y = as.matrix(Y_stand), lambda = tune[id,2], standardize = F, nfolds = 10, alpha = tune[id,3])
+
+    paste0(' Elasticnet : best_lam = ' ,lam_best_elastic, '  ---- Best alpha = ', alpha_best,'  --- Best MSE = ', MSE_best_elactic)  
+    
+param_elastic$beta
+
+```
+
+Nous voyons que ici les paramètres `age`, `adipos`, `hip` et `wrist` ont été mis a 0 tout comme lors de la régression **Lasso**. Cependant, malgré la ressemblance, les valeurs des paramètres ont légèrement changé entre **Lasso** et **ElasticNet**. Néanmoins, on voit une grande différence par rapport aux valeurs des paramètres du modèle **Ridge**.
+
+
+##### <FONT color='#CF4594'> Comparaison entre la regression linéaire multiple, Ridge, Lasso et ElasticNet </FONT>
+
+```{r}
+Y_est_elastic  <- as.matrix(X_stand) %*% as.matrix(param_elastic$beta)
+temp        <- data.frame(Y_est_lasso, Y_est_ridge, Y_est_elastic, Y_est_lm) ; names(temp) <- c('lasso', 'ridge', 'elasticnet', 'glm')
+temp        <- melt(temp)
+df_comp     <- data.frame (temp, 'y_obs' =  rep(as.matrix(Y_obs,ncol = 1),4))
+
+gr_comp1    <- ggplot(data = df_comp, aes(x = y_obs, y = value, colour = variable, shape = variable)) + geom_point() + 
+               geom_smooth(method = lm, se = F, size = 0.5)
+gr_comp1
+
+```
+
+Cette figure montre une comparaison entre les valeurs observées et les valeurs estimées pour les modèles de régression linéaire multiple **GLM**, **Ridge**, **Lasso**, et **ElasticNet**. Chaque méthode est représentée par des points colorés et une droite de tendance ajustée. L’axe horizontal correspond aux valeurs observées, tandis que l’axe vertical indique les valeurs prédites. On peut remarquer que la dispersion des points autour des droites varie selon les modèles.
+
+Les points associés au modèle **GLM** sont les plus dispersés, notamment lorsque les valeurs s’éloignent de la moyenne, ce qui montre que ce modèle est moins robuste face à la multicolinéarité ou au bruit. À l’inverse, les points des modèles **Ridge**, **Lasso**, et **ElasticNet** sont mieux alignés avec leurs droites respectives. **ElasticNet**, en particulier, semble équilibrer la précision de Ridge tout en bénéficiant de la simplification offerte par **Lasso**.
+
+ Les points moins dispersés autour de la droite **ElasticNet** confirment que ce modèle combine fiabilité et adaptabilité, ce qui en fait une méthode robuste pour des données complexes.
+
+##### <FONT color='#CF4594'> Comparaison des résultats</FONT></u>
+
+```{r}
+MSE_lm <- 1/ n_obs * t(matrix(model_simple$residuals, ncol =1)) %*% matrix(model_simple$residuals, ncol = 1)
+MSE  <- c('lm' = MSE_lm, 'ridge' = MSE_best_ridge, 'lasso'= MSE_best_lasso, 'elastic' = MSE_best_elactic)
+MSE
+
+```
+On peut voir que l'erreur a augmenté par rapport à la régression linéaire multiple, car la régression pénalisée ajoute une légère erreur.
+
+Dans le modèle **Ridge**, la valeur optimale de λ, identifiée par validation croisée, minimise l'erreur quadratique moyenne (MSE) sur les données de test, ce qui montre que ce modèle est plus performant que la régression multiple.
+
+Dans le modèle **Lasso**, l'erreur quadratique est de nouveau minimisée de plus la suppression des coefficients non significatifs permet d'augmenter la précision. Ce modèle a une MSE inférieure à la régression multiple et **Ridge**, et est donc plus précis.
+
+Dans le modèle **ElasticNet**, nous réalisons un compromis efficace entre les méthodes **Lasso** et **Ridge**
+Nous pouvons voir que l'erreur ajoutée la plus faible est celle du modèle **ElasticNet**, c'est donc logiquement le meilleur modèle car il sélectionne les variables importantes tout en gérant efficacement la multicolinéarité.
+
+
+```{r}
+All_param <- data.frame(as.matrix(cbind( model_simple$coefficients, param_best_ridge$beta, param_elastic$beta, param_best_lasso$beta )))
+colnames(All_param)<- c('lm','ridge', "elastic", "lasso")
+All_param
+```
+
+
+Les coefficients obtenus dans `All_param` montrent que **GLM** a des coefficients non régularisés, élevés ce qui indique un surajustement. 
+**Ridge** réduit l'amplitude des coefficients en conservant toutes les variables. 
+**Lasso** élimine certains coefficients en les ramenant à 0 ce qui simplifie le modèle.
+Enfin **ElasticNet** a équilibré la réduction des coefficents et la sélection des variables ce qui maintient les coefficients faibles mais pertinents.
+   
+
+<hr style="border: 1px solid #EE50A3;">
+
+#### <FONT color='#EE50A3'> IV. Conclusion </FONT>
+
+Ce projet nous a permis d’approfondir notre compréhension des méthodes de régression linéaire multiple et des modèles pénalisés (**Ridge** et **Lasso**) à travers l’analyse du jeu de données : `FAT` (pour prédire le pourcentage de graisse corporelle). L’objectif principal était de construire des modèles fiables, d’interpréter leurs coefficients et d’évaluer leur capacité prédictive tout en tenant compte des éventuels défis comme la multicolinéarité et le surajustement.
+
+Nous avons donc pu voir tout d'abord que la régression linéaire multiple n'était pas adaptée à l'analyse de ce jeu de données, à cause de la multicolinéarité des variables. Puis nous avons pu analyser la différence entre les 3 types de régressions pénalisées. Nous en avons déduit que la régression la plus pertinente pour prédire des valeurs de `brozek` est l'**ElasticNet.**
+
+Cependant nous voyons que l'erreur MSE est toujours légèrement haute, par rapport à celle de la régression linéaire multiple. Il s'agit d'une des limites de la régression pénalisée.
+
+Ce projet a renforcé nos compétences en programmation sous R, notamment dans l’application pratique des modèles statistiques. On a également acquis une meilleure maîtrise des outils de visualisation et appris à tirer parti des modèles pénalisés pour résoudre des problèmes complexes.
+
+Enfin, nous réalisons que la qualité de la communication des résultats (graphiques, tableaux, conclusions claires) est aussi essentielle que l’analyse elle-même.
+
+<hr style="border: 1px solid #EE50A3;">
+
+#### <FONT color='#EE50A3'>V. Bibliographie</FONT>  
+
+**Répartition des tâches:** 
+Eve s'est occupée de la partie code de la régression linéaire multiple ainsi que de son code markown.
+
+Léhna s'est occupée de la partie régression pénalisée ainsi que de son code markdown.
+
+Nous avons effectué ensemble l'interprétation des résultats ainsi que les recherches bibliographiques. 
+
+
+  1. **Documentation des packages R utilisés**. Disponible sur CRAN : [https://cran.r-project.org/web/packages/available_packages_by_name.html](https://cran.r-project.org/web/packages/available_packages_by_name.html).  
+  2. **James, G., Witten, D., Hastie, T., & Tibshirani, R. (2013).** *An Introduction to Statistical Learning: with Applications in R*. Springer. Disponible gratuitement en PDF sur : [https://www.statlearning.com/](https://www.statlearning.com/).  
+  3. **Tutoriel Markdown**. *Introduction au Markdown par RStudio*. Vidéo disponible sur : [Bing Videos](https://www.bing.com/videos/riverview/relatedvideo?q=Introduction+au+Markdown+par+RStudio+tutoriel&mid=1B28DB169E035C134D081B28DB169E035C134D08&FORM=VIRE).  
+  4. **DellaData**. *Guide de démarrage en R markdown*. Disponible sur : [https://delladata.fr/guide-de-demarrage-en-r-markdown/](https://delladata.fr/guide-de-demarrage-en-r-markdown/).   
+  5. StatQuest with Josh Starmer - Ridge, Lasso and Elastic-Net Regression in R   https://youtu.be/ctmNq7FgbvI?si=ESzl3UQOZvmwF4xn
+  6. **DellaData**. *Fonctions mathématiques en LaTeX pour R Markdown*. Disponible sur : [https://delladata.fr/equations-latex-rmarkdown/](https://delladata.fr/equations-latex-rmarkdown/).
+  7. MODELES_LINEAIRE__2023.pdf. Disponible sur Blackboard.
+  8. **REG_LIN_SIMPLE_TRAME_MARKDOWN.Rmd**. Disponible sur Blackboard.  
+  9. **REGRESSION_LINEAIRE_MULTIPLE_2023.html**. Disponible sur Blackboard.  
+  10. **REG_PENALISEE_2023.html**. Disponible sur Blackboard.  
+  11. **REGRESSION_LINEAIRE_MULTIPLE_2022.Rmd**. Disponible sur Blackboard.  
+  12. **REG_PENALISEE_2023.Rmd**. Disponible sur Blackboard.  
+  13. **DellaData**. *Tutoriel: la régression linéaire multiple avec R*. Disponible sur :https://delladata.fr/tutoriel-regression-lineaire-multiple-r/  
+  <hr style="border: 1px solid #EE50A3;">
